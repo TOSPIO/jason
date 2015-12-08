@@ -40,7 +40,7 @@ jStr = runReader (execWriterT jStrTransform)
 
 stringify :: JValue -> String
 stringify (JNumber val) = show val
-stringify (JString val) = "\"" ++ val ++ "\""
+stringify (JString val) = "\"" ++ jStr val ++ "\""
 stringify (JBool val) = if val then "true" else "false"
 stringify JNull = "null"
 stringify (JObject val) = "{" ++ intercalate ", " (fmap (\(k, v) -> k ++ ": " ++ stringify v) val) ++ "}"
