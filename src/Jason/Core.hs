@@ -1,13 +1,13 @@
 module Jason.Core
        (
-         JValue(..)
+         JValue (..)
        ) where
 
-data JValue = JNumber Double
-            | JString String
+data JValue = JNull
             | JBool Bool
-            | JNull
-            | JObject [(String, JValue)]
+            | JNumber Double
+            | JString String
             | JArray [JValue]
+            | JObject [(String, JValue)]
             deriving (Eq, Ord, Show)
 

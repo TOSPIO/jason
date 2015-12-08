@@ -1,31 +1,50 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Jason.Parse
        (
          parse
        ) where
 
-import qualified Text.ParserCombinators.Parsec as P
-import Jason.Core
+import Control.Applicative
+import Data.ByteString.Char8 as C8
+import Data.Char
+import Data.Text as T
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Attoparsec.ByteString as P
+import Data.Attoparsec.ByteString.Char8 as PC8
+       (
+         char8
+       , notChar
+       , isHorizontalSpace
+       , isDigit_w8
+       )
+import Jason.Core (JValue (..))
 
-numberRule :: P.Parser JValue
-numberRule = do
-  s <- P.many1 P.digit
-  return $ JNumber $ read s
+bsToStr :: ByteString -> String
+bsToStr = T.unpack . decodeUtf8
 
-jsonChar :: P.Parser Char
-jsonChar = do
-  
+strToBS :: String -> ByteString
+strToBS = encodeUtf8 . T.pack
 
-jsonString :: P.Parser String
-jsonString = do
-  P.char '\"'
-  manyTill jsonChar '\"'
-  
+nullRule :: Parser JValue
+nullRule =
+  string "null" >> return JNull
 
-stringRule :: P.Parser JValue
-stringRule = do
-  P.char '\"'
-  P.try
-  P.char '\"'
+boolRule :: Parser JValue
+boolRule =
+  (string "true" >> return (JBool True)) <|>
+  (string "false" >> return (JBool False))
 
-parse :: String -> JValue
-parse = undefined
+numberRule :: Parser JValue
+numberRule =
+  JNumber <$> ((read . bsToStr) <$> P.takeWhile1 PC8.isDigit_w8)
+
+stringRule :: Parser JValue
+stringRule = JString <$> do
+  _ <- char8 '\"'
+  s <- cont
+  _ <- char8 '\"'
+  return $ bsToStr s
+  where
+    cont :: Parser ByteString
+    cont = P.takeWhile (\c -> c /= fromIntegral (ord '\"'))
