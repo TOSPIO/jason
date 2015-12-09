@@ -1,8 +1,10 @@
 module Jason
        (
-         module J
+         JValue (..),
+         stringify,
+         parse,
        ) where
 
-import Jason.Core as J
-import Jason.Parse as J
-import Jason.Stringify as J
+import Jason.Core
+import Jason.Parse
+import Jason.Stringify

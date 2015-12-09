@@ -17,7 +17,9 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Jason
-  -- other-modules:       
+  other-modules:       Jason.Core
+                     , Jason.Parse
+                     , Jason.Stringify
   -- other-extensions:    
   build-depends:       base >=4.8 && <4.9
                      , bytestring >=0.10.6

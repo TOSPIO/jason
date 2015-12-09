@@ -2,7 +2,7 @@
 
 module Jason.Parse
        (
-         Jason.Parse.parse
+         parse
        ) where
 
 import Control.Applicative
@@ -10,8 +10,9 @@ import Data.ByteString.Char8 as C8
 import Data.Char
 import Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
-import Data.Attoparsec.ByteString as P
-import Data.Attoparsec.ByteString.Char8 as PC8
+import Data.Attoparsec.ByteString as P hiding (parse)
+import qualified Data.Attoparsec.ByteString as P (parse)
+import Data.Attoparsec.ByteString.Char8 as PC8 hiding (parse)
 import Jason.Core (JValue (..))
 
 bsToStr :: ByteString -> String
@@ -93,4 +94,4 @@ jObjectRule =
       return (key, val)
 
 parse :: ByteString -> Result JValue
-parse = PC8.parse jRule
+parse = P.parse jRule
