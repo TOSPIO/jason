@@ -12,14 +12,16 @@ maintainer:          anohigisavay@gmail.com
 -- copyright:           
 category:            Development
 build-type:          Simple
--- extra-source-files:  
+-- extra-source-files:
 cabal-version:       >=1.10
 
 library
   exposed-modules:     Jason
   other-modules:       Jason.Core
+                     , Jason.Util
                      , Jason.Parse
                      , Jason.Stringify
+  default-extensions:  OverloadedStrings
   -- other-extensions:    
   build-depends:       base >=4.8 && <4.9
                      , bytestring >=0.10.6
@@ -27,5 +29,6 @@ library
                      , parsec >=3.1
                      , mtl >=2.2.0
                      , attoparsec >=0.13.0
+                     , deepseq >=1.4
   hs-source-dirs:      src
   default-language:    Haskell2010

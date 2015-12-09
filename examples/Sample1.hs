@@ -10,5 +10,5 @@ import Jason (parse)
 
 main :: IO ()
 main = do
-  bs <- BS.readFile "json_samples/sample1.json"
+  bs <- BS.readFile "../fixtures/sample1.json"
   print $ parse bs
