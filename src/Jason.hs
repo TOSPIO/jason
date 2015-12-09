@@ -1,5 +1,8 @@
-module Jason (
-  module Jason.Core
-  ) where
+module Jason
+       (
+         module J
+       ) where
 
-import Jason.Core
+import Jason.Core as J
+import Jason.Parse as J
+import Jason.Stringify as J

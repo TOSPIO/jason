@@ -2,7 +2,7 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                jason
-version:             0.1.0.0
+version:             0.0.1.0
 synopsis:            A simple JSON parser/serializer
 -- description:         
 license:             GPL-3
@@ -16,7 +16,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Jason, Jason.Core, Jason.Stringify
+  exposed-modules:     Jason
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.8 && <4.9
