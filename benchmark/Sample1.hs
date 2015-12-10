@@ -3,9 +3,6 @@ module Main where
 import Control.DeepSeq
 import Control.Exception
 import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Maybe
 import Data.ByteString as BS
 import Jason
 import System.Environment

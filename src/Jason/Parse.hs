@@ -18,27 +18,25 @@ stringRule :: Parser String
 stringRule =
   bsToStr <$>
   (
-    char '\"' *> cont <* char '\"'
+    char '\"' *> (C8.concat <$> many' (contNoEscape <|> contEscape)) <* char '\"'
   )
   where
-    cont :: Parser ByteString
-    cont = C8.pack <$> many' jChar
-    jChar :: Parser Char
-    jChar =
+    contNoEscape :: Parser ByteString
+    contNoEscape = PC8.takeWhile1 (\c -> c /= '\\' && c /= '\"')
+    contEscape :: Parser ByteString
+    contEscape =
+      char '\\' *>
       (
-        char '\\' *>
-        (
-          (char '\"' >> return '\"') <|>
-          (char '\\' >> return '\\') <|>
-          (char '/' >> return '/') <|>
-          (char 'b' >> return '\b') <|>
-          (char 'f' >> return '\f') <|>
-          (char 'n' >> return '\n') <|>
-          (char 'r' >> return '\r') <|>
-          (char 't' >> return '\t') <|>
-          liftA (chr . read) (char 'u' *> PC8.count 4 PC8.digit)
-        )
-      ) <|> notChar '\"'
+        (char '\"' >> return "\"") <|>
+        (char '\\' >> return "\\") <|>
+        (char '/' >> return "/") <|>
+        (char 'b' >> return "\b") <|>
+        (char 'f' >> return "\f") <|>
+        (char 'n' >> return "\n") <|>
+        (char 'r' >> return "\r") <|>
+        (char 't' >> return "\t") <|>
+        liftA (C8.singleton . chr . read) (char 'u' *> PC8.count 4 PC8.digit)
+      )
 
 
 jRule :: Parser JValue
