@@ -22,7 +22,8 @@ library
                      , Jason.Parse
                      , Jason.Stringify
   default-extensions:  OverloadedStrings
-  -- other-extensions:    
+  -- other-extensions:
+  ghc-options:         -O3
   build-depends:       attoparsec >=0.13.0
                      , base >=4.8 && <4.9
                      , bytestring >=0.10.6

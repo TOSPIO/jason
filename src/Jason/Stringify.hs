@@ -1,31 +1,29 @@
+{-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Jason.Stringify
        (
-         stringifyToBuilder
+         stringifyToText
        , stringify
        ) where
 
-import Data.ByteString as BS
-import Data.ByteString.Lazy (toStrict)
-import Data.ByteString.Builder as BSB
-import Data.Char
-import Data.Monoid
-import Jason.Core
-       (
-         JValue(..)
-       )
-import Jason.Util (strToBS)
+import           Data.ByteString         as BS
+import           Data.ByteString.Builder as BSB
+import           Data.ByteString.Lazy    (toStrict)
+import           Data.Char
+import           Data.Monoid
+import           Data.Text               as T
+import           Jason.Core              (JValue (..))
+import           Jason.Util              (textToBS)
 
-stringifyToBuilder :: JValue -> Builder
-stringifyToBuilder JNull = "null"
-stringifyToBuilder (JNumber val) = doubleDec val
-stringifyToBuilder (JString val) =
-  charUtf8 '\"' <> mconcat (fmap jCharToBuilder val) <> charUtf8 '\"' where
-  jCharToBuilder :: Char -> Builder
-  jCharToBuilder c =
+stringifyToText :: JValue -> Text
+stringifyToText JNull = "null"
+stringifyToText (JNumber val) = T.pack $ show val
+stringifyToText (JString val) =
+  ('\"' `T.cons` T.concatMap jCharToText val) `T.snoc` '\"' where
+  jCharToText :: Char -> Text
+  jCharToText c =
       case c of
       '\"' -> "\\\""
       '\\' -> "\\\\"
@@ -35,29 +33,23 @@ stringifyToBuilder (JString val) =
       '\n' -> "\\n"
       '\r' -> "\\r"
       '\t' -> "\\t"
-      (isAscii -> True) -> charUtf8 c
-      _ -> "\\u" <> intDec (ord c)
-stringifyToBuilder (JBool val) = if val then "true" else "false"
-stringifyToBuilder (JArray val) =
-  charUtf8 '[' <>
-  byteString
+      (isAscii -> True) -> T.singleton c
+      _ -> "\\u" `T.append` T.pack (show (ord c))
+stringifyToText (JBool val) = if val then "true" else "false"
+stringifyToText (JArray val) =
+  '[' `T.cons`
+    T.intercalate ", " (Prelude.map stringifyToText val)
+  `T.snoc` ']'
+stringifyToText (JObject val) =
+  '{' `T.cons`
+  T.intercalate ", "
   (
-    intercalate ", " (fmap (toStrict . toLazyByteString . stringifyToBuilder) val)
-  ) <>
-  charUtf8 ']'
-stringifyToBuilder (JObject val) =
-  charUtf8 '{' <>
-  byteString
-  (
-    intercalate ", "
-    (
-      fmap (\(k, v) ->
-             strToBS k <> ": " <>
-             (toStrict . toLazyByteString) (stringifyToBuilder v)
-           ) val
-    )
-  ) <>
-  charUtf8 '}'
+    fmap (\(k, v) ->
+           k `T.append` ": " `T.append`
+           stringifyToText v
+         ) val
+  )
+  `T.snoc` '}'
 
 stringify :: JValue -> ByteString
-stringify = toStrict . toLazyByteString . stringifyToBuilder
+stringify = textToBS . stringifyToText

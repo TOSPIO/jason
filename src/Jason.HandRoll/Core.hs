@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 
-module Jason.Core
+module Jason.HandRoll.Core
        (
          JValue (..)
        ) where
@@ -16,4 +16,5 @@ data JValue = JNull
             | JArray ![JValue]
             | JObject ![(Text, JValue)]
             deriving (Eq, Ord, Show, Generic, NFData)
+
 
