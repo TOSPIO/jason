@@ -17,12 +17,16 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Jason
+                     , Jason.HandRoll
   other-modules:       Jason.Core
                      , Jason.Util
                      , Jason.Parse
                      , Jason.Stringify
+                     , Jason.HandRoll.Parse
   default-extensions:  OverloadedStrings
-  -- other-extensions:
+  other-extensions:    ExistentialQuantification
+                     , FlexibleContexts
+                     , RankNTypes
   ghc-options:         -O3
   build-depends:       attoparsec >=0.13.0
                      , base >=4.8 && <4.9

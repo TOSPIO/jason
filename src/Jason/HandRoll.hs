@@ -5,6 +5,6 @@ module Jason.HandRoll
          parse,
        ) where
 
-import Jason.HandRoll.Core
+import Jason.Core
 import Jason.HandRoll.Parse
-import Jason.HandRoll.Stringify
+import Jason.Stringify
