@@ -1,8 +1,8 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE ImpredicativeTypes        #-}
+{-# LANGUAGE MultiWayIf                #-}
 {-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE MultiWayIf #-}
 
 module Jason.HandRoll.Parse
        (
@@ -11,99 +11,121 @@ module Jason.HandRoll.Parse
 
 import           Control.Exception
 import           Control.Monad
-import           Data.ByteString       as BS
-import           Data.ByteString.Char8 as C8
-import           Data.Text             as T
-import           Data.Text.Encoding    as E
-import           Data.Word             as W
+import           Control.Monad.State.Lazy
+import           Control.Monad.Writer.Lazy as WL
+import           Data.Attoparsec.ByteString       as APBS
+import           Data.Attoparsec.ByteString.Char8 as APC8
+import           Data.ByteString                  as BS
+import           Data.ByteString.Char8            as C8
+import           Data.Char
+import           Data.Maybe
+import           Data.Text                        as T
+import           Data.Text.Encoding               as E (decodeUtf8, encodeUtf8)
+import           Data.Word                        as W
+import           Jason.Core                       (JValue (..))
+import qualified Numeric                          as N (readHex)
 
-class Token t where
-  text :: t -> Text
-
-instance Token Char where
-  text = T.singleton
-
-instance Token ByteString where
-  text = decodeUtf8
-
-data AnyToken = forall t. (Token t) => MkAT { unToken :: t }
-instance Token AnyToken where
-  text (MkAT t) = text t
-
-mkAT :: (Token t) => t -> AnyToken
-mkAT = MkAT
+data Token = TChar Char
+           | TStr Text
+           | TNumber Double
+           | TLObj
+           | TRObj
+           | TLArr
+           | TRArr
+           | TComma
+           | TBool Bool
+           | TNull
+           | TError Pos String
 
 type Pos = Int
-type TokenTest = ByteString -> Maybe (AnyToken, ByteString)
+type TokenTest = WL.WriterT [Token] (State ByteString) ()
+
+readHex :: ByteString -> Maybe Int
+readHex bs = let
+  parseResults = N.readHex . C8.unpack $ bs
+  in
+    case parseResults of
+    [] -> Nothing
+    a:_ -> Just $ fst a
+
+maybeTError :: Maybe a -> TokenTest -> TokenTest
+maybeTError Nothing _ = put BS.empty >> tell [TError 0 "Error"]
+maybeTError (Just _) t = t
 
 scanEscapeChar :: TokenTest
-scanEscapeChar bs =
-  C8.uncons bs >>= \(h, bsx) ->
-  case h of
-  '\"' -> return (mkAT '\"', bsx)
-  '\\' -> return (mkAT '\\', bsx)
-  '/' -> return (mkAT '/', bsx)
-  'b' -> return (mkAT '\b', bsx)
-  'f' -> return (mkAT '\f', bsx)
-  'n' -> return (mkAT '\n', bsx)
-  'r' -> return (mkAT '\r', bsx)
-  'u' -> scanUnicodeChar bsx
+scanEscapeChar = do
+  bs <- get
+  maybeTError C8.un
+  case C8.uncons bs of
+    '\"' -> put bss >> tell [TChar '\"']
+    '\\' -> put bss >> tell [TChar '\\']
+    '/' -> put bss >> tell [TChar '/']
+    'b' -> put bss >> tell [TChar '\b']
+    'f' -> put bss >> tell [TChar '\f']
+    'n' -> put bss >> tell [TChar '\n']
+    'r' -> put bss >> tell [TChar '\r']
+    'u' -> scanUnicodeChar
   where
     scanUnicodeChar :: TokenTest
-    scanUnicodeChar bs = let
-      (d4, bsx) = BS.splitAt 4 bs
-      in
-        undefined
+    scanUnicodeChar = do
+      bs <- get
+      let (d4, bss) = BS.splitAt 4 bs
+      hex <- readHex d4
+      put bss
+      tell [TChar (chr hex)]
 
 scanString :: TokenTest
 scanString bs = do
   pos <- findEnclosing bs 0
-  let (t, bsx) = C8.splitAt pos bs
-  return (mkAT t, bsx)
+  let (t, bss) = C8.splitAt pos bs
+  return (TStr . decodeUtf8 $ t, bss)
   where
     findEnclosing :: ByteString -> Int -> Maybe Int
     findEnclosing bs sp = do
       guard $ sp < C8.length bs - 1
       let c = bs `C8.index` sp
       if
-        | c == '\"' -> return sp
+        | c == '\"' -> Just sp
         | c == '\\' -> findEnclosing bs (sp+2)
         | otherwise -> Nothing
 
-scanObject :: TokenTest
-scanObject = undefined
-
-scanArray :: TokenTest
-scanArray = undefined
-
 scanNull :: TokenTest
-scanNull = undefined
+scanNull bs = case C8.splitAt 3 bs of
+  ("ull", bss) -> put bss >> tell TNull
+  _ -> put bs
 
 scanTrue :: TokenTest
-scanTrue = undefined
+scanTrue bs = case C8.splitAt 3 bs of
+  ("rue", bss) -> put bss >> tell (TBool True)
+  _ -> put bs
 
 scanFalse :: TokenTest
-scanFalse = undefined
+scanFalse bs = case C8.splitAt 4 bs of
+  ("alse", bss) -> put bss >> tell (TBool False)
+  _ -> put bs
 
 scanNumber :: TokenTest
-scanNumber = undefined
+scanNumber bs =
+  case flip APBS.feed "" . APBS.parse APC8.scientific $ bs of
+    Done bss r -> put bss >> tell (TNumber r)
+    _ -> put bs
 
-tokenize :: TokenTest
-tokenize bs = let
-  x = C8.uncons bs
-  in
-    case x of
-    Nothing -> Nothing
-    Just (h, bsx) -> noname bs h bsx
-  where
-    noname :: (Token a) => ByteString -> Char -> ByteString -> Maybe (a, ByteString)
-    noname bs h bsx =
-      case h of
-      '\\' -> scanEscapeChar bsx
-      '\"' -> scanString bsx
-      '{' -> scanObject bsx
-      '[' -> scanArray bsx
-      'n' -> scanNull bsx
-      't' -> scanTrue bsx
-      'f' -> scanFalse bsx
-      d -> scanNumber bs
+scanSelect :: TokenTest
+scanSelect bs = case C8.uncons bs of
+  Nothing -> return ()
+  Just (h, bss) -> if
+    h `BS.elem` " \r\n\t"
+    then scanSelect bss
+    else case h of
+    Just (h, bss) -> case h of
+      '\\' -> scanEscapeChar bss
+      '\"' -> scanString bss
+      '{' -> put bss >> tell TLObj
+      '[' -> put bss >> tell TLArr
+      'n' -> scanNull bss
+      't' -> scanTrue bss
+      'f' -> scanFalse bss
+      _ -> scanNumber bs
+
+parse :: [Token] -> JValue
+parse = undefined
