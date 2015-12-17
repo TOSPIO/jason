@@ -1,8 +1,13 @@
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE ImpredicativeTypes        #-}
-{-# LANGUAGE MultiWayIf                #-}
-{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImpredicativeTypes         #-}
+{-# LANGUAGE MultiWayIf                 #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
+{-# LANGUAGE OverloadedStrings          #-}
 
 module Jason.HandRoll.Parse
        (
@@ -11,19 +16,22 @@ module Jason.HandRoll.Parse
 
 import           Control.Exception
 import           Control.Monad
-import           Control.Monad.State.Lazy
-import           Control.Monad.Writer.Lazy as WL
+import           Control.Monad.RWS
+import           Control.Monad.State
+import           Control.Monad.Writer
 import           Data.Attoparsec.ByteString       as APBS
 import           Data.Attoparsec.ByteString.Char8 as APC8
 import           Data.ByteString                  as BS
 import           Data.ByteString.Char8            as C8
 import           Data.Char
 import           Data.Maybe
+import           Data.Monoid
 import           Data.Text                        as T
 import           Data.Text.Encoding               as E (decodeUtf8, encodeUtf8)
 import           Data.Word                        as W
 import           Jason.Core                       (JValue (..))
 import qualified Numeric                          as N (readHex)
+import           Prelude                          as P
 
 data Token = TChar Char
            | TStr Text
@@ -37,8 +45,34 @@ data Token = TChar Char
            | TNull
            | TError Pos String
 
+------------------------------------------------------------
+-- Token collection
+------------------------------------------------------------
+
+data TokenColl = TokenColl [Token] | TokenError Pos String
+
+isTokenError :: TokenColl -> Bool
+isTokenError (TokenError _ _) = True
+isTokenError _ = False
+
+instance Monoid TokenColl where
+  mempty = TokenColl []
+  l `mappend` r =
+    if P.any isTokenError l || P.any isTokenError r
+    then TokenError 0 "Error"
+    else TokenColl (l `mappend` r)
+
+
+------------------------------------------------------------
+-- TokenTest RWS
+------------------------------------------------------------
+
 type Pos = Int
-type TokenTest = WL.WriterT [Token] (State ByteString) ()
+-- No MaybeT in mtl. Have to lift, lift, lift!
+type TokenTest a = WriterT TokenColl (StateT ByteString Maybe) a
+data TokenTestComp a = TokenTestComp { unTokenTestComp :: TokenTest a}
+                     deriving (Functor, Applicative, Monad, MonadWriter, MonadState)
+
 
 readHex :: ByteString -> Maybe Int
 readHex bs = let
@@ -48,22 +82,23 @@ readHex bs = let
     [] -> Nothing
     a:_ -> Just $ fst a
 
-maybeTError :: Maybe a -> TokenTest -> TokenTest
-maybeTError Nothing _ = put BS.empty >> tell [TError 0 "Error"]
-maybeTError (Just _) t = t
+yield :: Token -> ByteString -> a
+yield t bs = put bs >> tell $ TokenColl [t]
+
+lift2 = lift . lift
 
 scanEscapeChar :: TokenTest
 scanEscapeChar = do
   bs <- get
-  maybeTError C8.un
+  (h, bss) <- lift2 $ C8.uncons bs
   case C8.uncons bs of
-    '\"' -> put bss >> tell [TChar '\"']
-    '\\' -> put bss >> tell [TChar '\\']
-    '/' -> put bss >> tell [TChar '/']
-    'b' -> put bss >> tell [TChar '\b']
-    'f' -> put bss >> tell [TChar '\f']
-    'n' -> put bss >> tell [TChar '\n']
-    'r' -> put bss >> tell [TChar '\r']
+    '\"' -> yield (TChar '\"') bss
+    '\\' -> yield (TChar '\\') bss
+    '/' -> yield (TChar '/') bss
+    'b' -> yield (TChar '\b') bss
+    'f' -> yield (TChar '\f') bss
+    'n' -> yield (TChar '\n') bss
+    'r' -> yield (TChar '\r') bss
     'u' -> scanUnicodeChar
   where
     scanUnicodeChar :: TokenTest
